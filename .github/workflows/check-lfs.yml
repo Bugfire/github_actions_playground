@@ -1,0 +1,37 @@
+name: Check LFS
+
+defaults:
+  run:
+    working-directory: bin/check-lfs
+
+on: [push, pull_request]
+
+jobs:
+  check-lfs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2.1.2
+        with:
+          node-version: 12.x
+          check-latest: true
+
+      - uses: actions/cache@v2
+        with:
+          path: 'bin/check-lfs/node_modules'
+          key: ${{ runner.os }}-check-lfs-${{ hashFiles('bin/check-lfs/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-check-lfs-
+
+      - name: Install packages
+        run: npm install
+
+      - name: Run Lint
+        run: npm run --silent eslint
+
+      - name: Run Check-LFS
+        run: npm run --silent check
+        env:
+          TARGET_TOP: ../..
+
