@@ -1,0 +1,25 @@
+name: On Failure
+
+on:
+  push:
+    branches:
+      - failure/*
+
+jobs:
+  test-on-failure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1 Success
+        run: echo 'ok'
+      - name: 2 Success
+        run: echo 'ok 2'
+      - name: 3 Failure
+        run: woo
+      - name: 4 Success
+        run: echo 'ok 4'
+      - name: 5 Failure
+        run: woo
+      - name: on-failure
+        run: echo 'on-failure'
+        if: failure()
+

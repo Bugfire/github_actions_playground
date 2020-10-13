@@ -1,0 +1,83 @@
+name: Script Test
+
+on:
+  push:
+    branches:
+      - deploy/*
+
+jobs:
+  test-for-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v3
+        id: create-deployment
+        env:
+          # オプショナル
+          # DEPLOY_ENVIRONMENT: 'production', 'staging' 等。デフォルトは 'production'。
+          # DEPLOY_AUTO_MERGE: 'true' の場合は default branch に自動マージされる。デフォルトは 'false'。
+          # DEPLOY_DESCRIPTION: 任意のメッセージ。140文字以内。デフォルトはなし。
+          DEPLOY_ENVIRONMENT: staging
+        with:
+          script: |
+            const env = process.env;
+            const logUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha}/checks`
+            // https://octokit.github.io/rest.js/v18
+            // https://developer.github.com/v3/repos/deployments/#create-a-deployment
+            // required_contexts がなくても良いと書いてあるが、ないと通らない
+            const deployment = await github.repos.createDeployment({
+              ref: context.ref,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              required_contexts: [],
+              environment: env.DEPLOY_ENVIRONMENT || 'production',
+              transient_environment: true,
+              auto_merge: env.DEPLOY_AUTO_MERGE === 'true',
+              description: env.DEPLOY_DESCRIPTION
+            });
+            // https://developer.github.com/v3/repos/deployments/#create-a-deployment-status
+            await github.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              state: 'in_progress',
+              log_url: logUrl,
+              mediaType: {
+                // state を inactive, in_progress, queued にする場合は必要
+                previews: ["flash-preview", "ant-man-preview"]
+              }
+            });
+            return deployment.data.id.toString();
+          result-encoding: string          
+      - name: Get result
+        run: echo "${{steps.create-deployment.outputs.result}}"
+      - uses: actions/github-script@v3
+        id: update-deployment
+        env:
+          # 必須
+          # DEPLOY_STATUS: 'error', 'failure', 'inactive', 'in_progress', 'queued', 'pending', 'success'
+          # DEPLOY_ID: デプロイメントID
+          # オプショナル
+          # DEPLOY_TARGET_URL: デプロイ先を指す任意 URL。Deployments ページ上で表示される。デフォルトはなし。
+          # DEPLOY_DESCRIPTION: 任意のメッセージ。140文字以内。デフォルトはなし。
+          DEPLOY_STATUS: 'success'
+          DEPLOY_ID: '${{steps.create-deployment.outputs.result}}'
+          DEPLOY_TARGET_URL: https://www.google.com/
+          DEPLOY_DESCRIPTION: 'デプロイした'
+        with:
+          script: |
+            const env = process.env;
+            const logUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha}/checks`
+            // https://developer.github.com/v3/repos/deployments/#create-a-deployment-status
+            await github.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: Number(env.DEPLOY_ID),
+              state: env.DEPLOY_STATUS,
+              log_url: logUrl,
+              environment_url: env.DEPLOY_TARGET_URL,
+              description: env.DEPLOY_DESCRIPTION,
+              mediaType: {
+                // state を inactive, in_progress, queued にする場合は必要
+                previews: ["flash-preview", "ant-man-preview"]
+              }
+            });
